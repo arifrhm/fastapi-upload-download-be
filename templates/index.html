@@ -43,42 +43,50 @@
     <ul id="searchResults"></ul>
 
     <script>
+      const MAX_FILE_SIZE_MB = 100;
+      const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024; // 100 MB in bytes
+  
       async function uploadFile() {
-        const fileInput = document.getElementById("fileInput");
-        const totalPartsInput = document.getElementById("totalParts");
-        const file = fileInput.files[0];
-
-        if (!file) {
-          alert("Please select a file to upload.");
-          return;
-        }
-
-        const totalParts = Math.ceil(file.size / (1 * 1024 * 1024)); // 1 MB per part
-        totalPartsInput.value = totalParts;
-
-        const uploadUrl = "/upload_part/";
-        const chunkSize = 1 * 1024 * 1024; // 1 MB per chunk
-
-        for (let part = 1; part <= totalParts; part++) {
-          const start = (part - 1) * chunkSize;
-          const end = Math.min(file.size, part * chunkSize);
-          const blob = file.slice(start, end);
-
-          const formData = new FormData();
-          formData.append("file", blob, file.name); // Ensure file name is included
-          formData.append("part_number", part);
-          formData.append("total_parts", totalParts);
-
-          await fetch(uploadUrl, {
-            method: "POST",
-            body: formData,
-          })
-            .then((response) => response.json())
-            .then((data) => console.log(data))
-            .catch((error) => console.error("Error uploading part:", error));
-        }
-
-        alert("Upload complete");
+          const fileInput = document.getElementById('fileInput');
+          const totalPartsInput = document.getElementById('totalParts');
+          const file = fileInput.files[0];
+  
+          if (!file) {
+              alert('Please select a file to upload.');
+              return;
+          }
+  
+          // Check file size
+          if (file.size > MAX_FILE_SIZE_BYTES) {
+              alert(`File size exceeds ${MAX_FILE_SIZE_MB} MB. Please select a smaller file.`);
+              return;
+          }
+  
+          const totalParts = Math.ceil(file.size / (1 * 1024 * 1024)); // 1 MB per part
+          totalPartsInput.value = totalParts;
+  
+          const uploadUrl = '/upload_part/';
+          const chunkSize = 1 * 1024 * 1024; // 1 MB per chunk
+  
+          for (let part = 1; part <= totalParts; part++) {
+              const start = (part - 1) * chunkSize;
+              const end = Math.min(file.size, part * chunkSize);
+              const blob = file.slice(start, end);
+  
+              const formData = new FormData();
+              formData.append('file', blob, file.name); // Ensure file name is included
+              formData.append('part_number', part);
+              formData.append('total_parts', totalParts);
+  
+              await fetch(uploadUrl, {
+                  method: 'POST',
+                  body: formData
+              }).then(response => response.json())
+                .then(data => console.log(data))
+                .catch(error => console.error('Error uploading part:', error));
+          }
+  
+          alert('Upload complete');
       }
 
       async function downloadFile() {
