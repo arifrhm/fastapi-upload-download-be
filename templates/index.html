@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>File Upload & Download</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <h1>File Upload & Download</h1>
+
+    <!-- Upload Section -->
+    <h2>Upload File</h2>
+    <form id="uploadForm" enctype="multipart/form-data">
+      <input type="file" id="fileInput" required />
+      <input type="hidden" id="totalParts" />
+      <button type="button" onclick="uploadFile()">Upload</button>
+    </form>
+
+    <!-- Download Section -->
+    <h2>Download File</h2>
+    <form id="downloadForm">
+      <input type="text" id="fileName" placeholder="Enter file name" required />
+      <button type="button" onclick="downloadFile()">Download</button>
+    </form>
+
+    <!-- List Files Section -->
+    <h2>List Files</h2>
+    <button type="button" onclick="listFiles()">List Files</button>
+    <ul id="fileList"></ul>
+
+    <!-- Search Files Section -->
+    <h2>Search Files</h2>
+    <form id="searchForm">
+      <input
+        type="text"
+        id="searchFileName"
+        placeholder="Search file by name"
+        required
+      />
+      <button type="button" onclick="searchFile()">Search</button>
+    </form>
+    <ul id="searchResults"></ul>
+
+    <script>
+      async function uploadFile() {
+        const fileInput = document.getElementById("fileInput");
+        const totalPartsInput = document.getElementById("totalParts");
+        const file = fileInput.files[0];
+
+        if (!file) {
+          alert("Please select a file to upload.");
+          return;
+        }
+
+        const totalParts = Math.ceil(file.size / (1 * 1024 * 1024)); // 1 MB per part
+        totalPartsInput.value = totalParts;
+
+        const uploadUrl = "/upload_part/";
+        const chunkSize = 1 * 1024 * 1024; // 1 MB per chunk
+
+        for (let part = 1; part <= totalParts; part++) {
+          const start = (part - 1) * chunkSize;
+          const end = Math.min(file.size, part * chunkSize);
+          const blob = file.slice(start, end);
+
+          const formData = new FormData();
+          formData.append("file", blob, file.name); // Ensure file name is included
+          formData.append("part_number", part);
+          formData.append("total_parts", totalParts);
+
+          await fetch(uploadUrl, {
+            method: "POST",
+            body: formData,
+          })
+            .then((response) => response.json())
+            .then((data) => console.log(data))
+            .catch((error) => console.error("Error uploading part:", error));
+        }
+
+        alert("Upload complete");
+      }
+
+      async function downloadFile() {
+        const fileName = document.getElementById("fileName").value;
+
+        if (!fileName) {
+          alert("Please enter a file name to download.");
+          return;
+        }
+
+        const response = await fetch(`/download/${fileName}`);
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        } else {
+          alert("Error downloading file.");
+        }
+      }
+
+      async function listFiles() {
+        const response = await fetch("/files/");
+        const data = await response.json();
+        const fileList = document.getElementById("fileList");
+        fileList.innerHTML = "";
+
+        if (data.files.length === 0) {
+          fileList.innerHTML = "<li>No files found.</li>";
+          return;
+        }
+
+        data.files.forEach((file) => {
+          const li = document.createElement("li");
+          li.textContent = file;
+          fileList.appendChild(li);
+        });
+      }
+
+      async function searchFile() {
+        const fileName = document.getElementById("searchFileName").value;
+
+        if (!fileName) {
+          alert("Please enter a file name to search.");
+          return;
+        }
+
+        const response = await fetch(`/search/?file_name=${fileName}`);
+        const data = await response.json();
+        const searchResults = document.getElementById("searchResults");
+        searchResults.innerHTML = "";
+
+        if (data.matching_files.length === 0) {
+          searchResults.innerHTML = "<li>No matching files found.</li>";
+          return;
+        }
+
+        data.matching_files.forEach((file) => {
+          const li = document.createElement("li");
+          li.textContent = file;
+          searchResults.appendChild(li);
+        });
+      }
+    </script>
+  </body>
+</html>
