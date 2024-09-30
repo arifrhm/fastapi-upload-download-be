@@ -1,151 +1,172 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>File Upload & Download</title>
-    <link rel="stylesheet" href="/static/style.css" />
-  </head>
-  <body>
-    <h1>File Upload & Download</h1>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 font-sans flex flex-col items-center py-10">
+    <h1 class="text-3xl font-bold mb-8">File Upload & Download</h1>
 
     <!-- Upload Section -->
-    <h2>Upload File</h2>
-    <form id="uploadForm" enctype="multipart/form-data">
-      <input type="file" id="fileInput" required />
-      <input type="hidden" id="totalParts" />
-      <button type="button" onclick="uploadFile()">Upload</button>
-    </form>
+    <div class="mb-8 p-6 bg-white shadow-md rounded-lg w-full max-w-md">
+        <h2 class="text-2xl font-semibold mb-4">Upload File</h2>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" id="fileInput" required class="mb-4 p-2 border border-gray-300 rounded w-full" />
+            <input type="hidden" id="totalParts" />
+            <button type="button" onclick="uploadFile()" class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition duration-200">Upload</button>
+        </form>
+        <div id="uploadProgress" class="mt-4 hidden">
+            <div class="bg-gray-200 rounded-full">
+                <div id="progressBar" class="bg-blue-500 text-xs font-medium text-center text-white rounded-full h-2" style="width: 0%;">0%</div>
+            </div>
+        </div>
+    </div>
 
     <!-- Download Section -->
-    <h2>Download File</h2>
-    <form id="downloadForm">
-      <input type="text" id="fileName" placeholder="Enter file name" required />
-      <button type="button" onclick="downloadFile()">Download</button>
-    </form>
+    <div class="mb-8 p-6 bg-white shadow-md rounded-lg w-full max-w-md">
+        <h2 class="text-2xl font-semibold mb-4">Download File</h2>
+        <form id="downloadForm">
+            <input type="text" id="fileName" placeholder="Enter file name" required class="mb-4 p-2 border border-gray-300 rounded w-full" />
+            <button type="button" onclick="downloadFile()" class="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 transition duration-200">Download</button>
+        </form>
+        <div id="downloadMessage" class="mt-4 hidden">Downloading... Please wait.</div>
+    </div>
 
     <!-- List Files Section -->
-    <h2>List Files</h2>
-    <button type="button" onclick="listFiles()">List Files</button>
-    <ul id="fileList"></ul>
+    <div class="mb-8 p-6 bg-white shadow-md rounded-lg w-full max-w-md">
+        <h2 class="text-2xl font-semibold mb-4">List Files</h2>
+        <button type="button" onclick="listFiles()" class="w-full bg-yellow-500 text-white py-2 rounded hover:bg-yellow-600 transition duration-200">List Files</button>
+        <ul id="fileList" class="mt-4 list-disc pl-5"></ul>
+    </div>
 
     <!-- Search Files Section -->
-    <h2>Search Files</h2>
-    <form id="searchForm">
-      <input
-        type="text"
-        id="searchFileName"
-        placeholder="Search file by name"
-        required
-      />
-      <button type="button" onclick="searchFile()">Search</button>
-    </form>
-    <ul id="searchResults"></ul>
+    <div class="p-6 bg-white shadow-md rounded-lg w-full max-w-md">
+        <h2 class="text-2xl font-semibold mb-4">Search Files</h2>
+        <form id="searchForm">
+            <input type="text" id="searchFileName" placeholder="Search file by name" required class="mb-4 p-2 border border-gray-300 rounded w-full" />
+            <button type="button" onclick="searchFile()" class="w-full bg-purple-500 text-white py-2 rounded hover:bg-purple-600 transition duration-200">Search</button>
+        </form>
+        <ul id="searchResults" class="mt-4 list-disc pl-5"></ul>
+    </div>
 
     <script>
-      async function uploadFile() {
-        const fileInput = document.getElementById("fileInput");
-        const totalPartsInput = document.getElementById("totalParts");
-        const file = fileInput.files[0];
+        async function uploadFile() {
+            const fileInput = document.getElementById("fileInput");
+            const totalPartsInput = document.getElementById("totalParts");
+            const file = fileInput.files[0];
+            const progressBar = document.getElementById("progressBar");
+            const uploadProgress = document.getElementById("uploadProgress");
 
-        if (!file) {
-          alert("Please select a file to upload.");
-          return;
+            if (!file) {
+                alert("Please select a file to upload.");
+                return;
+            }
+
+            const totalParts = Math.ceil(file.size / (1 * 1024 * 1024)); // 1 MB per part
+            totalPartsInput.value = totalParts;
+            uploadProgress.classList.remove("hidden");
+
+            const uploadUrl = "/upload_part/";
+            const chunkSize = 1 * 1024 * 1024; // 1 MB per chunk
+
+            for (let part = 1; part <= totalParts; part++) {
+                const start = (part - 1) * chunkSize;
+                const end = Math.min(file.size, part * chunkSize);
+                const blob = file.slice(start, end);
+
+                const formData = new FormData();
+                formData.append("file", blob, file.name);
+                formData.append("part_number", part);
+                formData.append("total_parts", totalParts);
+
+                await fetch(uploadUrl, {
+                    method: "POST",
+                    body: formData,
+                })
+                .then((response) => response.json())
+                .then((data) => {
+                    console.log(data);
+                    const percentage = Math.round((part / totalParts) * 100);
+                    progressBar.style.width = percentage + '%';
+                    progressBar.textContent = percentage + '%';
+                })
+                .catch((error) => console.error("Error uploading part:", error));
+            }
+
+            uploadProgress.classList.add("hidden");
+            alert("Upload complete");
         }
 
-        const totalParts = Math.ceil(file.size / (1 * 1024 * 1024)); // 1 MB per part
-        totalPartsInput.value = totalParts;
+        async function downloadFile() {
+            const fileName = document.getElementById("fileName").value;
+            const downloadMessage = document.getElementById("downloadMessage");
 
-        const uploadUrl = "/upload_part/";
-        const chunkSize = 1 * 1024 * 1024; // 1 MB per chunk
+            if (!fileName) {
+                alert("Please enter a file name to download.");
+                return;
+            }
 
-        for (let part = 1; part <= totalParts; part++) {
-          const start = (part - 1) * chunkSize;
-          const end = Math.min(file.size, part * chunkSize);
-          const blob = file.slice(start, end);
-
-          const formData = new FormData();
-          formData.append("file", blob, file.name); // Ensure file name is included
-          formData.append("part_number", part);
-          formData.append("total_parts", totalParts);
-
-          await fetch(uploadUrl, {
-            method: "POST",
-            body: formData,
-          })
-            .then((response) => response.json())
-            .then((data) => console.log(data))
-            .catch((error) => console.error("Error uploading part:", error));
+            downloadMessage.classList.remove("hidden");
+            const response = await fetch(`/download/${fileName}`);
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            } else {
+                alert("Error downloading file.");
+            }
+            downloadMessage.classList.add("hidden");
         }
 
-        alert("Upload complete");
-      }
+        async function listFiles() {
+            const response = await fetch("/files/");
+            const data = await response.json();
+            const fileList = document.getElementById("fileList");
+            fileList.innerHTML = "";
 
-      async function downloadFile() {
-        const fileName = document.getElementById("fileName").value;
+            if (data.files.length === 0) {
+                fileList.innerHTML = "<li>No files found.</li>";
+                return;
+            }
 
-        if (!fileName) {
-          alert("Please enter a file name to download.");
-          return;
+            data.files.forEach((file) => {
+                const li = document.createElement("li");
+                li.textContent = file;
+                fileList.appendChild(li);
+            });
         }
 
-        const response = await fetch(`/download/${fileName}`);
-        if (response.ok) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = fileName;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        } else {
-          alert("Error downloading file.");
+        async function searchFile() {
+            const fileName = document.getElementById("searchFileName").value;
+
+            if (!fileName) {
+                alert("Please enter a file name to search.");
+                return;
+            }
+
+            const response = await fetch(`/search/?file_name=${fileName}`);
+            const data = await response.json();
+            const searchResults = document.getElementById("searchResults");
+            searchResults.innerHTML = "";
+
+            if (data.matching_files.length === 0) {
+                searchResults.innerHTML = "<li>No matching files found.</li>";
+                return;
+            }
+
+            data.matching_files.forEach((file) => {
+                const li = document.createElement("li");
+                li.textContent = file;
+                searchResults.appendChild(li);
+            });
         }
-      }
-
-      async function listFiles() {
-        const response = await fetch("/files/");
-        const data = await response.json();
-        const fileList = document.getElementById("fileList");
-        fileList.innerHTML = "";
-
-        if (data.files.length === 0) {
-          fileList.innerHTML = "<li>No files found.</li>";
-          return;
-        }
-
-        data.files.forEach((file) => {
-          const li = document.createElement("li");
-          li.textContent = file;
-          fileList.appendChild(li);
-        });
-      }
-
-      async function searchFile() {
-        const fileName = document.getElementById("searchFileName").value;
-
-        if (!fileName) {
-          alert("Please enter a file name to search.");
-          return;
-        }
-
-        const response = await fetch(`/search/?file_name=${fileName}`);
-        const data = await response.json();
-        const searchResults = document.getElementById("searchResults");
-        searchResults.innerHTML = "";
-
-        if (data.matching_files.length === 0) {
-          searchResults.innerHTML = "<li>No matching files found.</li>";
-          return;
-        }
-
-        data.matching_files.forEach((file) => {
-          const li = document.createElement("li");
-          li.textContent = file;
-          searchResults.appendChild(li);
-        });
-      }
     </script>
-  </body>
+</body>
 </html>
