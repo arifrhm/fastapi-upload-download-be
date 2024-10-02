@@ -1,171 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>File Upload & Download</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chunk Upload with Resume</title>
+    <style>
+        #progressBar {
+            width: 100%;
+            background-color: #f3f3f3;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+        }
+        #progressBar span {
+            display: block;
+            height: 20px;
+            background-color: #4caf50;
+            width: 0;
+            color: #fff;
+            text-align: center;
+            line-height: 20px;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 font-sans flex flex-col items-center py-10">
-    <h1 class="text-3xl font-bold mb-8">File Upload & Download</h1>
-
-    <!-- Upload Section -->
-    <div class="mb-8 p-6 bg-white shadow-md rounded-lg w-full max-w-md">
-        <h2 class="text-2xl font-semibold mb-4">Upload File</h2>
-        <form id="uploadForm" enctype="multipart/form-data">
-            <input type="file" id="fileInput" required class="mb-4 p-2 border border-gray-300 rounded w-full" />
-            <input type="hidden" id="totalParts" />
-            <button type="button" onclick="uploadFile()" class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition duration-200">Upload</button>
-        </form>
-        <div id="uploadProgress" class="mt-4 hidden">
-            <div class="bg-gray-200 rounded-full">
-                <div id="progressBar" class="bg-blue-500 text-xs font-medium text-center text-white rounded-full h-2" style="width: 0%;">0%</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Download Section -->
-    <div class="mb-8 p-6 bg-white shadow-md rounded-lg w-full max-w-md">
-        <h2 class="text-2xl font-semibold mb-4">Download File</h2>
-        <form id="downloadForm">
-            <input type="text" id="fileName" placeholder="Enter file name" required class="mb-4 p-2 border border-gray-300 rounded w-full" />
-            <button type="button" onclick="downloadFile()" class="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 transition duration-200">Download</button>
-        </form>
-        <div id="downloadMessage" class="mt-4 hidden">Downloading... Please wait.</div>
-    </div>
-
-    <!-- List Files Section -->
-    <div class="mb-8 p-6 bg-white shadow-md rounded-lg w-full max-w-md">
-        <h2 class="text-2xl font-semibold mb-4">List Files</h2>
-        <button type="button" onclick="listFiles()" class="w-full bg-yellow-500 text-white py-2 rounded hover:bg-yellow-600 transition duration-200">List Files</button>
-        <ul id="fileList" class="mt-4 list-disc pl-5"></ul>
-    </div>
-
-    <!-- Search Files Section -->
-    <div class="p-6 bg-white shadow-md rounded-lg w-full max-w-md">
-        <h2 class="text-2xl font-semibold mb-4">Search Files</h2>
-        <form id="searchForm">
-            <input type="text" id="searchFileName" placeholder="Search file by name" required class="mb-4 p-2 border border-gray-300 rounded w-full" />
-            <button type="button" onclick="searchFile()" class="w-full bg-purple-500 text-white py-2 rounded hover:bg-purple-600 transition duration-200">Search</button>
-        </form>
-        <ul id="searchResults" class="mt-4 list-disc pl-5"></ul>
-    </div>
+<body>
+    <input type="file" id="fileInput" />
+    <button onclick="startUpload()">Upload</button>
+    <button onclick="resumeUpload()">Resume</button>
+    <div id="progressBar"><span id="progressText">0%</span></div>
 
     <script>
-        async function uploadFile() {
-            const fileInput = document.getElementById("fileInput");
-            const totalPartsInput = document.getElementById("totalParts");
+        let uploadQueue = {};
+        let currentChunkIndex = 0;
+        let totalChunks = 0;
+        let fileName = '';
+        let fileSize = 0;
+
+        function startUpload() {
+            const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
-            const progressBar = document.getElementById("progressBar");
-            const uploadProgress = document.getElementById("uploadProgress");
+            fileSize = file.size;
+            const chunkSize = 1024 * 1024; // 1MB
+            totalChunks = Math.ceil(fileSize / chunkSize);
+            fileName = file.name;
+            uploadQueue = {};
 
-            if (!file) {
-                alert("Please select a file to upload.");
+            for (let i = 0; i < totalChunks; i++) {
+                const start = i * chunkSize;
+                const end = Math.min(start + chunkSize, fileSize);
+                const chunk = file.slice(start, end);
+                uploadQueue[i] = { chunk, index: i };
+            }
+
+            currentChunkIndex = 0;
+            uploadNextChunk();
+        }
+
+        function uploadNextChunk() {
+            if (currentChunkIndex >= totalChunks) {
+                console.log('Upload complete');
                 return;
             }
 
-            const totalParts = Math.ceil(file.size / (1 * 1024 * 1024)); // 1 MB per part
-            totalPartsInput.value = totalParts;
-            uploadProgress.classList.remove("hidden");
-
-            const uploadUrl = "/upload_part/";
-            const chunkSize = 1 * 1024 * 1024; // 1 MB per chunk
-
-            for (let part = 1; part <= totalParts; part++) {
-                const start = (part - 1) * chunkSize;
-                const end = Math.min(file.size, part * chunkSize);
-                const blob = file.slice(start, end);
-
-                const formData = new FormData();
-                formData.append("file", blob, file.name);
-                formData.append("part_number", part);
-                formData.append("total_parts", totalParts);
-
-                await fetch(uploadUrl, {
-                    method: "POST",
-                    body: formData,
-                })
-                .then((response) => response.json())
-                .then((data) => {
-                    console.log(data);
-                    const percentage = Math.round((part / totalParts) * 100);
-                    progressBar.style.width = percentage + '%';
-                    progressBar.textContent = percentage + '%';
-                })
-                .catch((error) => console.error("Error uploading part:", error));
+            if (!uploadQueue[currentChunkIndex]) {
+                currentChunkIndex++;
+                uploadNextChunk();
+                return;
             }
 
-            uploadProgress.classList.add("hidden");
-            alert("Upload complete");
+            const { chunk, index } = uploadQueue[currentChunkIndex];
+            const formData = new FormData();
+            formData.append('part_number', index + 1); // part_number is 1-based index
+            formData.append('total_parts', totalChunks);
+            formData.append('file', chunk);
+            formData.append('file_name', fileName);
+
+            fetch('/upload_part/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message.includes('uploaded') || data.message.includes('complete')) {
+                    delete uploadQueue[currentChunkIndex];
+                    currentChunkIndex++;
+                    updateProgressBar();
+                    uploadNextChunk();
+                } else {
+                    console.error('Error:', data.message);
+                }
+            })
+            .catch(error => console.error('Error:', error));
         }
 
-        async function downloadFile() {
-            const fileName = document.getElementById("fileName").value;
-            const downloadMessage = document.getElementById("downloadMessage");
+        function updateProgressBar() {
+            const progress = Math.round((currentChunkIndex / totalChunks) * 100);
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            progressBar.querySelector('span').style.width = progress + '%';
+            progressText.textContent = progress + '%';
+        }
+
+        function resumeUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            fileName = file?.name;
+            fileSize = file?.size;
+            const chunkSize = 1024 * 1024; // 1MB
 
             if (!fileName) {
-                alert("Please enter a file name to download.");
+                console.error('No file selected');
                 return;
             }
 
-            downloadMessage.classList.remove("hidden");
-            const response = await fetch(`/download/${fileName}`);
-            if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-            } else {
-                alert("Error downloading file.");
-            }
-            downloadMessage.classList.add("hidden");
-        }
+            fetch('/resume-upload?file_name=' + encodeURIComponent(fileName), {
+                method: 'GET'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.chunk_index !== undefined) {
+                    currentChunkIndex = data.chunk_index;
+                    totalChunks = Math.ceil(fileSize / chunkSize);
+                    uploadQueue = {};
 
-        async function listFiles() {
-            const response = await fetch("/files/");
-            const data = await response.json();
-            const fileList = document.getElementById("fileList");
-            fileList.innerHTML = "";
+                    for (let i = currentChunkIndex; i < totalChunks; i++) {
+                        const start = i * chunkSize;
+                        const end = Math.min(start + chunkSize, fileSize);
+                        const chunk = file.slice(start, end);
+                        uploadQueue[i] = { chunk, index: i };
+                    }
 
-            if (data.files.length === 0) {
-                fileList.innerHTML = "<li>No files found.</li>";
-                return;
-            }
-
-            data.files.forEach((file) => {
-                const li = document.createElement("li");
-                li.textContent = file;
-                fileList.appendChild(li);
-            });
-        }
-
-        async function searchFile() {
-            const fileName = document.getElementById("searchFileName").value;
-
-            if (!fileName) {
-                alert("Please enter a file name to search.");
-                return;
-            }
-
-            const response = await fetch(`/search/?file_name=${fileName}`);
-            const data = await response.json();
-            const searchResults = document.getElementById("searchResults");
-            searchResults.innerHTML = "";
-
-            if (data.matching_files.length === 0) {
-                searchResults.innerHTML = "<li>No matching files found.</li>";
-                return;
-            }
-
-            data.matching_files.forEach((file) => {
-                const li = document.createElement("li");
-                li.textContent = file;
-                searchResults.appendChild(li);
-            });
+                    updateProgressBar();
+                    uploadNextChunk();
+                } else {
+                    console.error('Error:', data.message);
+                }
+            })
+            .catch(error => console.error('Error:', error));
         }
     </script>
 </body>

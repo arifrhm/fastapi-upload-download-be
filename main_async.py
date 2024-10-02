@@ -92,6 +92,22 @@ async def download_file(file_name: str):
         headers={"Content-Disposition": f"attachment; filename={file_name}"},
     )
 
+@app.get("/resume-upload")
+async def resume_upload(file_name: str):
+    """
+    Endpoint to check the last uploaded chunk for a file and resume upload.
+    """
+    file_path = os.path.join(UPLOAD_FOLDER, file_name)
+
+    # Check if the file exists
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    file_size = os.path.getsize(file_path)
+    chunk_index = file_size // CHUNK_SIZE
+
+    return {"chunk_index": chunk_index, "message": f"Resume from chunk {chunk_index}"}
+
 
 @app.get("/files/")
 async def list_files():
