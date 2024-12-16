@@ -41,7 +41,7 @@
             fileSize = file.size;
             const chunkSize = 1024 * 1024; // 1MB
             totalChunks = Math.ceil(fileSize / chunkSize);
-            fileName = file.name;
+            fileName = file.name;  // Store the original file name
             uploadQueue = {};
 
             for (let i = 0; i < totalChunks; i++) {
@@ -72,7 +72,7 @@
             formData.append('part_number', index + 1); // part_number is 1-based index
             formData.append('total_parts', totalChunks);
             formData.append('file', chunk);
-            formData.append('file_name', fileName);
+            formData.append('file_name', fileName);  // Send original file name
 
             fetch('/upload_part/', {
                 method: 'POST',
@@ -93,49 +93,22 @@
         }
 
         function updateProgressBar() {
-            const progress = Math.round((currentChunkIndex / totalChunks) * 100);
             const progressBar = document.getElementById('progressBar');
             const progressText = document.getElementById('progressText');
-            progressBar.querySelector('span').style.width = progress + '%';
-            progressText.textContent = progress + '%';
+            const percent = (currentChunkIndex / totalChunks) * 100;
+            progressBar.style.width = percent + '%';
+            progressText.textContent = Math.round(percent) + '%';
         }
 
         function resumeUpload() {
-            const fileInput = document.getElementById('fileInput');
-            const file = fileInput.files[0];
-            fileName = file?.name;
-            fileSize = file?.size;
-            const chunkSize = 1024 * 1024; // 1MB
-
-            if (!fileName) {
-                console.error('No file selected');
-                return;
-            }
-
-            fetch('/resume-upload?file_name=' + encodeURIComponent(fileName), {
-                method: 'GET'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.chunk_index !== undefined) {
+            fetch(`/resume-upload?file_name=${fileName}`)
+                .then(response => response.json())
+                .then(data => {
                     currentChunkIndex = data.chunk_index;
-                    totalChunks = Math.ceil(fileSize / chunkSize);
-                    uploadQueue = {};
-
-                    for (let i = currentChunkIndex; i < totalChunks; i++) {
-                        const start = i * chunkSize;
-                        const end = Math.min(start + chunkSize, fileSize);
-                        const chunk = file.slice(start, end);
-                        uploadQueue[i] = { chunk, index: i };
-                    }
-
-                    updateProgressBar();
+                    console.log(`Resuming from chunk ${currentChunkIndex}`);
                     uploadNextChunk();
-                } else {
-                    console.error('Error:', data.message);
-                }
-            })
-            .catch(error => console.error('Error:', error));
+                })
+                .catch(error => console.error('Error resuming upload:', error));
         }
     </script>
 </body>

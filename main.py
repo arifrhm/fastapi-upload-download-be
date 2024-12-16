@@ -37,6 +37,7 @@ async def upload_part(
     file: UploadFile = File(...),
     part_number: int = Form(...),
     total_parts: int = Form(...),
+    file_name: str = Form(...),  # Accept file name from frontend
 ):
     """
     Asynchronous endpoint to upload a part of the file.
@@ -48,19 +49,25 @@ async def upload_part(
             status_code=400, detail="Invalid part number or total parts"
         )
 
-    file_location = os.path.join(UPLOAD_FOLDER, file.filename)
+    file_location = os.path.join(UPLOAD_FOLDER, file_name)  # Use the original filename passed
 
+    # Ensure the file exists before writing the chunks
+    if part_number == 1 and not os.path.exists(file_location):
+        # If it's the first chunk, create the file
+        Path(file_location).touch()
+
+    # Save the file chunk
     async with aiofiles.open(file_location, "ab") as upload_file:
         while content := await file.read(CHUNK_SIZE):
             await upload_file.write(content)
 
     # Return a response indicating upload progress
     if part_number == total_parts:
-        return {"message": "Upload complete", "filename": file.filename}
+        return {"message": "Upload complete", "filename": file_name}
     else:
         return {
             "message": f"Part {part_number}/{total_parts} uploaded",
-            "filename": file.filename,
+            "filename": file_name,
         }
 
 
