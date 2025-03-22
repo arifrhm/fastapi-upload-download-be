@@ -1,0 +1,16 @@
+#progressBar {
+    width: 100%;
+    background-color: #f3f3f3;
+    border: 1px solid #ccc;
+    margin-top: 10px;
+}
+
+#progressBar span {
+    display: block;
+    height: 20px;
+    background-color: #4caf50;
+    width: 0;
+    color: #fff;
+    text-align: center;
+    line-height: 20px;
+} 
